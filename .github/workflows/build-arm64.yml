@@ -1,47 +1,49 @@
-name: Build Linux ARM64 Binary
+name: Build Linux ARM64 Final
 
 on:
   push:
     branches: [ main ]
 
 jobs:
-  build-arm:
+  build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: Checkout Code
         uses: actions/checkout@v4
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
-      - name: Build on ARM64
+      - name: Build on ARM64 Container
         uses: uraimo/run-on-arch-action@v2
         with:
           arch: aarch64
-          distro: ubuntu20.04 # 兼容性较好的版本，适合麒麟系统
+          distro: ubuntu22.04
+          githubToken: ${{ github.token }}
           
-          # 在 ARM 容器内运行的指令
           run: |
-            # 1. 安装系统依赖（OR-Tools 有时需要 libatomic）
+            # 1. 安装 ARM 系统底层依赖
             apt-get update
             apt-get install -y python3-pip python3-dev binutils libatomic1
             
-            # 2. 升级 pip 并安装 Python 依赖
-            python3 -m pip install --upgrade pip
-            # 注意：这里直接安装你的核心依赖
-            pip3 install fastapi uvicorn ortools pyinstaller pydantic
+            # 2. 升级基础环境
+            python3 -m pip install --upgrade pip setuptools wheel
             
-            # 3. 如果你有 requirements.txt，也可以用：
-            # pip3 install -r requirements.txt
+            # 3. 安装定制的依赖文件
+            pip3 install -r requirements_linux.txt
             
-            # 4. 执行 PyInstaller 打包
-            # --collect-all ortools 是关键，确保算法库的所有组件被包含
+            # 4. 安装打包工具
+            pip3 install pyinstaller
+            
+            # 5. 执行正式打包
+            # --collect-all ortools 是为了解决你之前体积只有 50MB 的核心问题
             pyinstaller --onefile --clean \
                         --collect-all ortools \
+                        --hidden-import=uvicorn.logging \
                         --name railway_app_arm64 main.py
 
-      - name: Upload Artifact
+      - name: Upload Finished Binary
         uses: actions/upload-artifact@v4
         with:
-          name: railway-arm64-executable
+          name: railway-arm64-binary
           path: dist/railway_app_arm64
